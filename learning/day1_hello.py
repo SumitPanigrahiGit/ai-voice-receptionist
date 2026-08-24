@@ -1,0 +1,1 @@
+print("Day 1: I am starting my ML journey — building an AI voice agent startup")
