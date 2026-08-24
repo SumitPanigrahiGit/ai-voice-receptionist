@@ -1,6 +1,5 @@
 from fastapi import FastAPI, UploadFile, File
-from transformers import WhisperProcessor, WhisperForConditionalGeneration
-import torch
+from faster_whisper import WhisperModel
 import joblib
 import soundfile as sf
 import numpy as np
@@ -9,9 +8,8 @@ import io
 
 app = FastAPI()
 
-print("Loading Whisper...")
-processor = WhisperProcessor.from_pretrained("openai/whisper-tiny")
-model = WhisperForConditionalGeneration.from_pretrained("openai/whisper-tiny")
+print("Loading Whisper (faster-whisper, tiny, int8 for low memory)...")
+whisper_model = WhisperModel("tiny", device="cpu", compute_type="int8")
 
 print("Loading intent classifier...")
 clf = joblib.load("model/saved/intent_classifier.pkl")
@@ -23,14 +21,9 @@ print("Models loaded. API ready.\n")
 def run_pipeline(audio_array, sampling_rate):
     if sampling_rate != 16000:
         audio_array = librosa.resample(audio_array, orig_sr=sampling_rate, target_sr=16000)
-        sampling_rate = 16000
 
-    input_features = processor(
-        audio_array, sampling_rate=sampling_rate, return_tensors="pt"
-    ).input_features
-    with torch.no_grad():
-        predicted_ids = model.generate(input_features)
-    transcription = processor.batch_decode(predicted_ids, skip_special_tokens=True)[0]
+    segments, _ = whisper_model.transcribe(audio_array, language="en")
+    transcription = " ".join([segment.text for segment in segments]).strip()
 
     text_vector = vectorizer.transform([transcription])
     intent = clf.predict(text_vector)[0]

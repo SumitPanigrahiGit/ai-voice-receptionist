@@ -1,10 +1,8 @@
---extra-index-url https://download.pytorch.org/whl/cpu 
-torch 
-fastapi 
-uvicorn 
-transformers 
-scikit-learn 
-joblib 
-librosa 
-soundfile 
+fastapi
+uvicorn
+faster-whisper
+scikit-learn
+joblib
+soundfile
+librosa
 python-multipart
