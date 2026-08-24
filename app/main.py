@@ -1,10 +1,12 @@
 from fastapi import FastAPI, UploadFile, File
+from fastapi.responses import JSONResponse
 from faster_whisper import WhisperModel
 import joblib
 import soundfile as sf
 import numpy as np
 import librosa
 import io
+import requests
 
 app = FastAPI()
 
@@ -47,3 +49,60 @@ async def process_call(file: UploadFile = File(...)):
 
     result = run_pipeline(audio_array, sampling_rate)
     return result
+
+
+@app.post("/incoming-call")
+async def incoming_call():
+    swml_response = {
+        "version": "1.0.0",
+        "sections": {
+            "main": [
+                {
+                    "play": {
+                        "url": "say:Hello, thanks for calling. Please tell me how I can help after the beep."
+                    }
+                },
+                {
+                    "record": {
+                        "audio": True,
+                        "format": "wav",
+                        "max_length": 10,
+                        "beep": True
+                    }
+                },
+                {
+                    "request": {
+                        "url": "https://ai-voice-receptionist-xgw2.onrender.com/process-recording",
+                        "method": "POST"
+                    }
+                }
+            ]
+        }
+    }
+    return JSONResponse(content=swml_response)
+
+
+@app.post("/process-recording")
+async def process_recording(RecordingUrl: str = None):
+    audio_response = requests.get(RecordingUrl + ".wav")
+    audio_array, sampling_rate = sf.read(io.BytesIO(audio_response.content))
+
+    if len(audio_array.shape) > 1:
+        audio_array = np.mean(audio_array, axis=1)
+    audio_array = audio_array.astype(np.float32)
+
+    result = run_pipeline(audio_array, sampling_rate)
+
+    swml_response = {
+        "version": "1.0.0",
+        "sections": {
+            "main": [
+                {
+                    "play": {
+                        "url": f"say:I heard you say: {result['transcription']}. I think you want to {result['intent']}. Goodbye."
+                    }
+                }
+            ]
+        }
+    }
+    return JSONResponse(content=swml_response)
